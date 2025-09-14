@@ -29,80 +29,14 @@ ota:
 api:
   encryption:
     key: !secret encryption_key
-
+    
 uart:
   id: dehum_uart
   tx_pin: 1
   rx_pin: 3
   baud_rate: 9600
+  rx_buffer_size: 256
 
-# Custom component for Midea protocol
-custom_component:
-  - lambda: |-
-      auto comp = new MideaDehumComponent(id(dehum_uart));
-      App.register_component(comp);
-      return {comp};
-
-# Define entities
-switch:
-  - platform: custom
-    lambda: |-
-      return {comp->power_switch, comp->swing_switch, comp->ion_switch};
-    switches:
-      - name: "Dehumidifier Power"
-      - name: "Dehumidifier Swing"
-      - name: "Dehumidifier Ion"
-
-select:
-  - platform: template
-    name: "Dehumidifier Mode"
-    id: dehum_mode
-    options:
-      - "auto"
-      - "setpoint"
-      - "continuous"
-      - "fan"
-    optimistic: true
-    set_action:
-      - lambda: |-
-          id(midea_dehum_comp)->set_mode(x.c_str());
-  - platform: template
-    name: "Dehumidifier Fan Speed"
-    id: dehum_fan
-    options:
-      - "auto"
-      - "low"
-      - "medium"
-      - "high"
-    optimistic: true
-    set_action:
-      - lambda: |-
-          id(midea_dehum_comp)->set_fan(x.c_str());
-
-number:
-  - platform: template
-    name: "Dehumidifier Target Humidity"
-    id: dehum_target_humidity
-    min_value: 30
-    max_value: 80
-    step: 1
-    optimistic: true
-    set_action:
-      - lambda: |-
-          id(midea_dehum_comp)->set_target_humidity((int) x);
-
-sensor:
-  - platform: custom
-    lambda: |-
-      return {comp->current_humidity, comp->error_sensor};
-    sensors:
-      - name: "Dehumidifier Current Humidity"
-        unit_of_measurement: "%"
-      - name: "Dehumidifier Error"
-
-binary_sensor:
-  - platform: custom
-    lambda: |-
-      return {comp->tank_full};
-    binary_sensors:
-      - name: "Dehumidifier Tank Full"
+midea_dehum:
+  id: midea_dehum_comp
+  uart_id: dehum_uart
