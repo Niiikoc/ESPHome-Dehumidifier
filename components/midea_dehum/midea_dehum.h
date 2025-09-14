@@ -1,50 +1,56 @@
 #pragma once
-
-
 #include "esphome.h"
 
 class MideaDehumComponent : public Component, public UARTDevice {
-public:
-explicit MideaDehumComponent(UARTComponent *parent) : UARTDevice(parent) {}
+ public:
+  MideaDehumComponent(UARTComponent *parent) : UARTDevice(parent) {}
 
+  void setup() override;
+  void loop() override;
 
-void setup() override;
-void loop() override;
+  // Control methods
+  void set_power(bool state);
+  void set_mode(const std::string &mode);
+  void set_fan(const std::string &fan);
+  void set_target_humidity(int humidity);
+  void set_swing(bool state);
+  void set_ion(bool state);
 
+  // Publish state
+  void publish_current_humidity(float value);
+  void publish_error(const std::string &err);
+  void publish_tank_full(bool state);
+  void publish_power(bool state);
+  void publish_mode(const std::string &mode);
+  void publish_fan(const std::string &fan);
+  void publish_swing(bool state);
+  void publish_ion(bool state);
 
-// Called from YAML lambdas
-void set_power(bool on);
-void set_swing(bool on);
-void set_ion(bool on);
-void set_mode(const char *mode);
-void set_fan(const char *fan);
-void set_target_humidity(int humidity);
+ protected:
+  void parse_frame_(const std::vector<uint8_t> &frame);
+  void send_command_(const std::vector<uint8_t> &cmd);
+  uint8_t calculate_checksum(const std::vector<uint8_t> &cmd);
 
+  std::vector<uint8_t> rx_buffer_;
 
-// Helpers for publishing to entities defined in YAML (ids)
-void publish_current_humidity(float v);
-void publish_error(const std::string &err);
-void publish_tank_full(bool f);
-
-
-protected:
-// Parsing helpers -- implement protocol specifics in .cpp
-void parse_frame(const std::vector<uint8_t> &frame);
-
-
-// Build commands (protocol-dependent)
-std::vector<uint8_t> build_power_command(bool on);
-std::vector<uint8_t> build_swing_command(bool on);
-std::vector<uint8_t> build_ion_command(bool on);
-std::vector<uint8_t> build_mode_command(const std::string &mode);
-std::vector<uint8_t> build_fan_command(const std::string &fan);
-std::vector<uint8_t> build_target_humidity_command(int humidity);
-
-
-// Buffer for incoming bytes
-std::vector<uint8_t> rx_buffer_;
+  // Entities
+  Switch *power_switch_;
+  Switch *swing_switch_;
+  Switch *ion_switch_;
+  Select *mode_select_;
+  Select *fan_select_;
+  Number *target_humidity_;
+  Sensor *current_humidity_;
+  Sensor *error_sensor_;
+  BinarySensor *tank_full_;
 };
 
-
-// Create an id that can be referenced in YAML lambdas
-extern MideaDehumComponent *midea_dehum_comp;
+// ESPHome YAML integration
+namespace esphome {
+namespace midea_dehum {
+class MideaDehumComponent : public ::MideaDehumComponent {
+ public:
+  MideaDehumComponent(UARTComponent *parent) : ::MideaDehumComponent(parent) {}
+};
+}  // namespace midea_dehum
+}  // namespace esphome
