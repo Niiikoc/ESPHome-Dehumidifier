@@ -1,5 +1,9 @@
 #pragma once
+
 #include "esphome.h"
+#include "esphome/components/uart/uart.h"
+
+using namespace esphome;
 
 class MideaDehumComponent : public Component, public UARTDevice {
  public:
@@ -45,12 +49,26 @@ class MideaDehumComponent : public Component, public UARTDevice {
   BinarySensor *tank_full_;
 };
 
-// ESPHome YAML integration
+// ==========================
+// ESPHome YAML Integration
+// ==========================
 namespace esphome {
 namespace midea_dehum {
-class MideaDehumComponent : public ::MideaDehumComponent {
- public:
-  MideaDehumComponent(UARTComponent *parent) : ::MideaDehumComponent(parent) {}
+
+// YAML config struct
+struct MideaDehumComponentConfig {
+  std::string id;
+  UARTComponent *uart;
 };
+
+// CONFIG_SCHEMA
+#define MIDEA_DEHUM_SCHEMA() \
+  uconfig("midea_dehum") \
+    .require("uart_id", &MideaDehumComponentConfig::uart, "UART component") \
+    .id(&MideaDehumComponentConfig::id)
+
+// to_code function
+void to_code(const MideaDehumComponentConfig &config);
+
 }  // namespace midea_dehum
 }  // namespace esphome
