@@ -53,22 +53,10 @@ class MideaDehumComponent : public Component, public UARTDevice {
 // ESPHome YAML Integration
 // ==========================
 namespace esphome {
-namespace midea_dehum {
-
-// YAML config struct
-struct MideaDehumComponentConfig {
-  std::string id;
-  UARTComponent *uart;
-};
-
-// CONFIG_SCHEMA
-#define MIDEA_DEHUM_SCHEMA() \
-  uconfig("midea_dehum") \
-    .require("uart_id", &MideaDehumComponentConfig::uart, "UART component") \
-    .id(&MideaDehumComponentConfig::id)
-
-// to_code function
-void to_code(const MideaDehumComponentConfig &config);
-
-}  // namespace midea_dehum
+  namespace midea_dehum {
+  
+  // Forward declaration
+  class MideaDehumComponent;
+  
+  }
 }  // namespace esphome
