@@ -197,8 +197,9 @@ namespace midea_dehum {
 
 MideaDehumComponent *component;
 
-void to_code(const MideaDehumComponent::Config &config) {
-  component = new MideaDehumComponent(config.uart);
+void to_code(const YAML::Node &node) {
+  auto *uart = reinterpret_cast<UARTComponent *>(node["uart_id"].as<UARTComponent *>());
+  component = new MideaDehumComponent(uart);
   register_component(component);
 }
 
