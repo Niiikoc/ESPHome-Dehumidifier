@@ -1,206 +1,160 @@
 #include "midea_dehum.h"
-
 #include "esphome/core/log.h"
-#include "esphome/core/component.h"
-#include "esphome/components/uart/uart_component.h"
 
-using namespace esphome;
+namespace esphome {
+namespace midea_dehum {
 
 static const char *TAG = "midea_dehum";
 
-// Global instance
-MideaDehumComponent *midea_dehum_comp = nullptr;
+// Command bytes (example mapping; adjust to your real protocol if needed)
+static const uint8_t CMD_POWER  = 0x01;  // DATA: 0x00=off, 0x01=on
+static const uint8_t CMD_MODE   = 0x02;  // DATA: 0x00=auto, 0x01=setpoint(dry), 0x02=continuous, 0x03=fan
+static const uint8_t CMD_FAN    = 0x03;  // DATA: 0x00=auto, 0x01=low, 0x02=medium, 0x03=high
+static const uint8_t CMD_TARGET = 0x04;  // DATA: 30..80 (%)
+static const uint8_t CMD_SWING  = 0x05;  // DATA: bit0 -> 1=on
+static const uint8_t CMD_ION    = 0x06;  // DATA: bit0 -> 1=on
 
-// ==========================
-// Component Setup
-// ==========================
 void MideaDehumComponent::setup() {
-  ESP_LOGI(TAG, "Midea Dehumidifier setup");
-
-  midea_dehum_comp = this;
-
-  // Register entities
-  power_switch_ = new Switch();
-  power_switch_->set_name("Dehumidifier Power");
-  power_switch_->set_icon("mdi:power");
-  power_switch_->register_component(this);
-
-  swing_switch_ = new Switch();
-  swing_switch_->set_name("Dehumidifier Swing");
-  swing_switch_->set_icon("mdi:swap-vertical");
-  swing_switch_->register_component(this);
-
-  ion_switch_ = new Switch();
-  ion_switch_->set_name("Dehumidifier Ion");
-  ion_switch_->set_icon("mdi:air-filter");
-  ion_switch_->register_component(this);
-
-  mode_select_ = new Select();
-  mode_select_->set_name("Dehumidifier Mode");
-  mode_select_->add_option("auto");
-  mode_select_->add_option("setpoint");
-  mode_select_->add_option("continuous");
-  mode_select_->add_option("fan");
-  mode_select_->register_component(this);
-
-  fan_select_ = new Select();
-  fan_select_->set_name("Dehumidifier Fan Speed");
-  fan_select_->add_option("auto");
-  fan_select_->add_option("low");
-  fan_select_->add_option("medium");
-  fan_select_->add_option("high");
-  fan_select_->register_component(this);
-
-  target_humidity_ = new Number();
-  target_humidity_->set_name("Dehumidifier Target Humidity");
-  target_humidity_->set_range(30, 80);
-  target_humidity_->set_step(1);
-  target_humidity_->register_component(this);
-
-  current_humidity_ = new Sensor();
-  current_humidity_->set_name("Dehumidifier Current Humidity");
-  current_humidity_->set_unit_of_measurement("%");
-  current_humidity_->register_component(this);
-
-  error_sensor_ = new Sensor();
-  error_sensor_->set_name("Dehumidifier Error Code");
-  error_sensor_->register_component(this);
-
-  tank_full_ = new BinarySensor();
-  tank_full_->set_name("Dehumidifier Tank Full");
-  tank_full_->register_component(this);
+  ESP_LOGI(TAG, "Setting up Midea Dehumidifier (climate)");
+  // Optionally: request initial status from device here
 }
 
-// ==========================
-// Loop: read UART
-// ==========================
 void MideaDehumComponent::loop() {
   while (this->available()) {
-    uint8_t c = this->read();
-    rx_buffer_.push_back(c);
+    uint8_t b = this->read();
+    rx_buf_.push_back(b);
 
-    // Parse frame when buffer has enough data
-    if (rx_buffer_.size() >= 10) {
-      parse_frame_(rx_buffer_);
-      rx_buffer_.clear();
+    // Try to align to header 0xAA
+    while (!rx_buf_.empty() && rx_buf_[0] != 0xAA) {
+      rx_buf_.erase(rx_buf_.begin());
+    }
+
+    // Minimal frame length = 4 bytes
+    if (rx_buf_.size() >= 4) {
+      // We don't know exact length beyond header/cmd/data/chk for this simplified protocol,
+      // so try to parse the entire buffer as a single frame.
+      parse_frame_(rx_buf_);
+      rx_buf_.clear();
     }
   }
 }
 
-// ==========================
-// Control Methods
-// ==========================
-void MideaDehumComponent::set_power(bool state) {
-  publish_power(state);
-  uint8_t cmd_byte = 0x01;
-  std::vector<uint8_t> cmd = {0xAA, cmd_byte, state ? 0x01 : 0x00};
-  send_command_(cmd);
+climate::ClimateTraits MideaDehumComponent::traits() {
+  climate::ClimateTraits t;
+  // Dehumidifier supports humidity control (not temperature)
+  t.set_supports_current_humidity(true);
+  t.set_supports_humidity(true);
+  t.set_min_humidity(30);
+  t.set_max_humidity(80);
+  t.set_humidity_step(1);
+
+  // Map to common HVAC modes: OFF, AUTO, and DRY
+  t.add_supported_mode(climate::CLIMATE_MODE_OFF);
+  t.add_supported_mode(climate::CLIMATE_MODE_AUTO);
+  t.add_supported_mode(climate::CLIMATE_MODE_DRY);
+
+  // You can add FAN modes as "fan modes" via a separate fan component or
+  // expose them with selects; here we keep it simple within climate modes.
+  return t;
 }
 
-void MideaDehumComponent::set_mode(const std::string &mode) {
-  publish_mode(mode);
-  uint8_t mode_byte = 0x00;
-  if (mode == "setpoint") mode_byte = 0x01;
-  else if (mode == "continuous") mode_byte = 0x02;
-  else if (mode == "fan") mode_byte = 0x03;
-  std::vector<uint8_t> cmd = {0xAA, 0x02, mode_byte};
-  send_command_(cmd);
+void MideaDehumComponent::control(const climate::ClimateCall &call) {
+  // Handle mode changes
+  if (call.get_mode().has_value()) {
+    auto mode = *call.get_mode();
+    if (mode == climate::CLIMATE_MODE_OFF) {
+      std::vector<uint8_t> cmd = {0xAA, CMD_POWER, 0x00};
+      send_command_(cmd);
+    } else if (mode == climate::CLIMATE_MODE_AUTO) {
+      // Power ON + AUTO mode
+      std::vector<uint8_t> cmd1 = {0xAA, CMD_POWER, 0x01};
+      send_command_(cmd1);
+      std::vector<uint8_t> cmd2 = {0xAA, CMD_MODE, 0x00};
+      send_command_(cmd2);
+    } else if (mode == climate::CLIMATE_MODE_DRY) {
+      // Power ON + DRY (setpoint) mode
+      std::vector<uint8_t> cmd1 = {0xAA, CMD_POWER, 0x01};
+      send_command_(cmd1);
+      std::vector<uint8_t> cmd2 = {0xAA, CMD_MODE, 0x01};
+      send_command_(cmd2);
+    }
+
+    // Reflect back in the climate state right away (optimistic)
+    this->mode = mode;
+    this->publish_state();
+  }
+
+  // Handle target humidity
+  if (call.get_target_humidity().has_value()) {
+    int h = *call.get_target_humidity();
+    if (h < 30) h = 30;
+    if (h > 80) h = 80;
+    std::vector<uint8_t> cmd = {0xAA, CMD_TARGET, static_cast<uint8_t>(h)};
+    send_command_(cmd);
+
+    this->target_humidity = h;
+    this->publish_state();
+  }
 }
 
-void MideaDehumComponent::set_fan(const std::string &fan) {
-  publish_fan(fan);
-  uint8_t fan_byte = 0x00;
-  if (fan == "low") fan_byte = 0x01;
-  else if (fan == "medium") fan_byte = 0x02;
-  else if (fan == "high") fan_byte = 0x03;
-  std::vector<uint8_t> cmd = {0xAA, 0x03, fan_byte};
-  send_command_(cmd);
-}
-
-void MideaDehumComponent::set_target_humidity(int humidity) {
-  if (humidity < 30) humidity = 30;
-  if (humidity > 80) humidity = 80;
-  publish_current_humidity(humidity);
-  std::vector<uint8_t> cmd = {0xAA, 0x04, static_cast<uint8_t>(humidity)};
-  send_command_(cmd);
-}
-
-void MideaDehumComponent::set_swing(bool state) {
-  publish_swing(state);
-  std::vector<uint8_t> cmd = {0xAA, 0x05, state ? 0x01 : 0x00};
-  send_command_(cmd);
-}
-
-void MideaDehumComponent::set_ion(bool state) {
-  publish_ion(state);
-  std::vector<uint8_t> cmd = {0xAA, 0x06, state ? 0x01 : 0x00};
-  send_command_(cmd);
-}
-
-// ==========================
-// Publishing Methods
-// ==========================
-void MideaDehumComponent::publish_current_humidity(float value) { current_humidity_->publish_state(value); }
-void MideaDehumComponent::publish_error(const std::string &err) { error_sensor_->publish_state(err); }
-void MideaDehumComponent::publish_tank_full(bool state) { tank_full_->publish_state(state); }
-void MideaDehumComponent::publish_power(bool state) { power_switch_->publish_state(state); }
-void MideaDehumComponent::publish_mode(const std::string &mode) { mode_select_->publish_state(mode); }
-void MideaDehumComponent::publish_fan(const std::string &fan) { fan_select_->publish_state(fan); }
-void MideaDehumComponent::publish_swing(bool state) { swing_switch_->publish_state(state); }
-void MideaDehumComponent::publish_ion(bool state) { ion_switch_->publish_state(state); }
-
-// ==========================
-// UART Parsing & Sending
-// ==========================
 void MideaDehumComponent::parse_frame_(const std::vector<uint8_t> &frame) {
-  if (frame.size() < 10) return;
-  uint8_t checksum = 0;
-  for (size_t i = 0; i < frame.size() - 1; ++i) checksum += frame[i];
-  if (checksum != frame.back()) return;
+  // Expect [0xAA][CMD][DATA][CHK]
+  if (frame.size() < 4) {
+    ESP_LOGW(TAG, "Frame too short");
+    return;
+  }
+  if (frame[0] != 0xAA) {
+    ESP_LOGW(TAG, "Wrong header");
+    return;
+  }
+  uint8_t chk = checksum_(std::vector<uint8_t>(frame.begin(), frame.end() - 1));
+  if (chk != frame.back()) {
+    ESP_LOGW(TAG, "Checksum mismatch");
+    return;
+  }
 
-  uint8_t power = frame[2] & 0x01;
-  uint8_t mode = (frame[3] >> 4) & 0x0F;
-  uint8_t fan = (frame[3] >> 2) & 0x03;
-  uint8_t humidity = frame[4];
-  uint8_t swing = (frame[5] >> 5) & 0x01;
-  uint8_t ion = (frame[5] >> 6) & 0x01;
-  uint8_t tank_full = (frame[6] >> 7) & 0x01;
-  uint8_t error = frame[7];
+  uint8_t cmd = frame[1];
+  uint8_t data = frame[2];
 
-  publish_power(power);
-  publish_mode(mode);
-  publish_fan(fan);
-  publish_current_humidity(humidity);
-  publish_swing(swing);
-  publish_ion(ion);
-  publish_tank_full(tank_full);
-  publish_error(error);
+  switch (cmd) {
+    case CMD_POWER: {
+      // 0x00=off, 0x01=on
+      this->mode = (data == 0x00) ? climate::CLIMATE_MODE_OFF
+                                  : climate::CLIMATE_MODE_AUTO;  // assume auto on power on
+      this->publish_state();
+      break;
+    }
+    case CMD_MODE: {
+      // 0x00=auto, 0x01=setpoint(dry), 0x02=continuous, 0x03=fan
+      if (data == 0x00) this->mode = climate::CLIMATE_MODE_AUTO;
+      else this->mode = climate::CLIMATE_MODE_DRY;  // map setpoint/continuous/fan to DRY generally
+      this->publish_state();
+      break;
+    }
+    case CMD_TARGET: {
+      // Treat as both current and target humidity report for now
+      this->current_humidity = data;
+      this->target_humidity = data;
+      this->publish_state();
+      break;
+    }
+    // Optional: map swing/ion/fan status into separate sensors or attributes if desired
+    default:
+      ESP_LOGD(TAG, "Unhandled cmd 0x%02X data 0x%02X", cmd, data);
+      break;
+  }
 }
 
 void MideaDehumComponent::send_command_(const std::vector<uint8_t> &cmd) {
-  std::vector<uint8_t> frame = cmd;
-  frame.push_back(calculate_checksum(cmd));
-  for (auto b : frame) write(b);
+  std::vector<uint8_t> out = cmd;
+  out.push_back(checksum_(cmd));
+  for (auto b : out) this->write(b);
 }
 
-uint8_t MideaDehumComponent::calculate_checksum(const std::vector<uint8_t> &cmd) {
+uint8_t MideaDehumComponent::checksum_(const std::vector<uint8_t> &bytes) {
   uint8_t sum = 0;
-  for (auto b : cmd) sum += b;
+  for (auto b : bytes) sum += b;
   return sum;
-}
-
-// ==========================
-// ESPHome YAML Integration
-// ==========================
-namespace esphome {
-namespace midea_dehum {
-
-MideaDehumComponent *component;
-
-void to_code(const YAML::Node &node) {
-  auto *uart = reinterpret_cast<UARTComponent *>(node["uart_id"].as<UARTComponent *>());
-  component = new MideaDehumComponent(uart);
-  register_component(component);
 }
 
 }  // namespace midea_dehum

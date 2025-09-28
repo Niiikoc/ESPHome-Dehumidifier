@@ -2,61 +2,32 @@
 
 #include "esphome.h"
 #include "esphome/components/uart/uart.h"
+#include "esphome/components/climate/climate.h"
 
-using namespace esphome;
+namespace esphome {
+namespace midea_dehum {
 
-class MideaDehumComponent : public Component, public UARTDevice {
+// Simple climate-based dehumidifier using UART protocol:
+// Frame: [0xAA][CMD][DATA][CHECKSUM=sum of all previous bytes mod 256]
+class MideaDehumComponent : public climate::Climate, public UARTDevice {
  public:
-  MideaDehumComponent(UARTComponent *parent) : UARTDevice(parent) {}
+  explicit MideaDehumComponent(UARTComponent *parent) : UARTDevice(parent) {}
 
   void setup() override;
   void loop() override;
 
-  // Control methods
-  void set_power(bool state);
-  void set_mode(const std::string &mode);
-  void set_fan(const std::string &fan);
-  void set_target_humidity(int humidity);
-  void set_swing(bool state);
-  void set_ion(bool state);
-
-  // Publish state
-  void publish_current_humidity(float value);
-  void publish_error(const std::string &err);
-  void publish_tank_full(bool state);
-  void publish_power(bool state);
-  void publish_mode(const std::string &mode);
-  void publish_fan(const std::string &fan);
-  void publish_swing(bool state);
-  void publish_ion(bool state);
+  // Climate API
+  void control(const climate::ClimateCall &call) override;
+  climate::ClimateTraits traits() override;
 
  protected:
+  // UART helpers
   void parse_frame_(const std::vector<uint8_t> &frame);
   void send_command_(const std::vector<uint8_t> &cmd);
-  uint8_t calculate_checksum(const std::vector<uint8_t> &cmd);
+  uint8_t checksum_(const std::vector<uint8_t> &bytes);
 
-  std::vector<uint8_t> rx_buffer_;
-
-  // Entities
-  Switch *power_switch_;
-  Switch *swing_switch_;
-  Switch *ion_switch_;
-  Select *mode_select_;
-  Select *fan_select_;
-  Number *target_humidity_;
-  Sensor *current_humidity_;
-  Sensor *error_sensor_;
-  BinarySensor *tank_full_;
+  std::vector<uint8_t> rx_buf_;
 };
 
-// ==========================
-// ESPHome YAML Integration
-// ==========================
-namespace esphome {
-  namespace midea_dehum {
-  
-  // Forward declaration
-  class MideaDehumComponent;
-  
-  }
+}  // namespace midea_dehum
 }  // namespace esphome
