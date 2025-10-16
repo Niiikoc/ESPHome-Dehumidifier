@@ -18,6 +18,8 @@ CONFIG_SCHEMA = (
         cv.Optional("display_mode_continuous", default="Continuous"): cv.string,
         cv.Optional("display_mode_smart", default="Smart"): cv.string,
         cv.Optional("display_mode_clothes_drying", default="ClothesDrying"): cv.string,
+        cv.Optional("display_mode_manual", default="Manual"): cv.string,
+        cv.Optional("display_mode_sleep", default="Sleep"): cv.string,
     })
     .extend(cv.COMPONENT_SCHEMA)
     .extend(uart.UART_DEVICE_SCHEMA)
@@ -34,3 +36,5 @@ async def to_code(config):
     cg.add(var.set_display_mode_continuous(config["display_mode_continuous"]))
     cg.add(var.set_display_mode_smart(config["display_mode_smart"]))
     cg.add(var.set_display_mode_clothes_drying(config["display_mode_clothes_drying"]))
+    cg.add(var.set_display_mode_manual(config["display_mode_manual"]))
+    cg.add(var.set_display_mode_sleep(config["display_mode_sleep"]))
