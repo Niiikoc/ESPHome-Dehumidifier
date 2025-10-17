@@ -42,6 +42,26 @@ class MideaSwingSwitch : public switch_::Switch, public Component {
   class MideaDehumComponent *parent_{nullptr};
 };
 #endif
+#ifdef USE_MIDEA_DEHUM_LOCK
+class MideaLockSwitch : public switch_::Switch, public Component {
+ public:
+  void set_parent(class MideaDehumComponent *parent) { this->parent_ = parent; }
+
+ protected:
+  void write_state(bool state) override;
+  class MideaDehumComponent *parent_{nullptr};
+};
+#endif
+#ifdef USE_MIDEA_DEHUM_UV
+class MideaUvSwitch : public switch_::Switch, public Component {
+ public:
+  void set_parent(class MideaDehumComponent *parent) { this->parent_ = parent; }
+
+ protected:
+  void write_state(bool state) override;
+  class MideaDehumComponent *parent_{nullptr};
+};
+#endif
 
 class MideaDehumComponent : public climate::Climate,
                             public uart::UARTDevice,
@@ -65,6 +85,16 @@ class MideaDehumComponent : public climate::Climate,
   void set_swing_switch(MideaSwingSwitch *s);
   void set_swing_state(bool on);
   bool get_swing_state() const { return this->swing_state_; }
+#endif
+#ifdef USE_MIDEA_DEHUM_LOCK
+  void set_lock_switch(MideaLockSwitch *s);
+  void set_lock_state(bool on);
+  bool get_lock_state() const { return this->lock_state_; }
+#endif
+#ifdef USE_MIDEA_DEHUM_UV
+  void set_uv_switch(MideaUvSwitch *s);
+  void set_uv_state(bool on);
+  bool get_uv_state() const { return this->uv_state_; }
 #endif
 
   std::string display_mode_setpoint_{"Setpoint"};
@@ -123,6 +153,15 @@ class MideaDehumComponent : public climate::Climate,
   MideaSwingSwitch *swing_switch_{nullptr};
   bool swing_state_{false};
 #endif
+#ifdef USE_MIDEA_DEHUM_LOCK
+  MideaLockSwitch *lock_switch_{nullptr};
+  bool lock_state_{false};
+#endif
+#ifdef USE_MIDEA_DEHUM_UV
+  MideaUvSwitch *uv_switch_{nullptr};
+  bool uv_state_{false};
+#endif
+
  private:
   bool last_wifi_connected_{false};
 };

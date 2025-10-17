@@ -136,6 +136,43 @@ void MideaSwingSwitch::write_state(bool state) {
   this->parent_->set_swing_state(state);
 }
 #endif
+#ifdef USE_MIDEA_DEHUM_LOCK
+void MideaDehumComponent::set_lock_state(bool on) {
+  if (this->lock_state_ == on) return;
+  this->lock_state_ = on;
+  ESP_LOGI(TAG, "Child Lock %s", on ? "ON" : "OFF");
+  this->sendSetStatus();
+}
+
+void MideaDehumComponent::set_lock_switch(MideaLockSwitch *s) {
+  this->lock_switch_ = s;
+  if (s) s->set_parent(this);
+}
+
+void MideaLockSwitch::write_state(bool state) {
+  if (!this->parent_) return;
+  this->parent_->set_lock_state(state);
+}
+#endif
+#ifdef USE_MIDEA_DEHUM_UV
+void MideaDehumComponent::set_uv_state(bool on) {
+  if (this->uv_state_ == on) return;
+  this->uv_state_ = on;
+  ESP_LOGI(TAG, "UV %s", on ? "ON" : "OFF");
+  this->sendSetStatus();
+}
+
+void MideaDehumComponent::set_uv_switch(MideaUvSwitch *s) {
+  this->uv_switch_ = s;
+  if (s) s->set_parent(this);
+}
+
+void MideaUvSwitch::write_state(bool state) {
+  if (!this->parent_) return;
+  this->parent_->set_uv_state(state);
+}
+#endif
+
 void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
   this->set_uart_parent(uart);
   this->uart_ = uart;
@@ -211,6 +248,16 @@ void MideaDehumComponent::parseState() {
   bool new_swing_state = (serialRxBuf[29] & 0x20) != 0;
   this->swing_state_ = new_swing_state;
   if (this->swing_switch_) this->swing_switch_->publish_state(new_swing_state);
+#endif
+#ifdef USE_MIDEA_DEHUM_LOCK
+  bool new_lock_state = (serialRxBuf[29] & 0x20) != 0;
+  this->lock_state_ = new_lock_state;
+  if (this->lock_switch_) this->lock_switch_->publish_state(new_lock_state);
+#endif
+#ifdef USE_MIDEA_DEHUM_UV
+  bool new_uv_state = (serialRxBuf[29] & 0x20) != 0;
+  this->uv_state_ = new_uv_state;
+  if (this->uv_switch_) this->uv_switch_->publish_state(new_uv_state);
 #endif
   state.currentHumidity  = serialRxBuf[26];
   state.currentTemperature = (static_cast<int>(serialRxBuf[27]) - 50) /2;
@@ -341,6 +388,16 @@ void MideaDehumComponent::sendSetStatus() {
   uint8_t swing_flags   = 0x00;
   if (this->swing_state_) swing_flags   |= 0x08;  // Bit 3
   setStatusCommand[10] = swing_flags;
+#endif
+#ifdef USE_MIDEA_DEHUM_LOCK
+  uint8_t lock_flags = 0x00;
+  if (this->lock_state_)   lock_flags |= 0x40;  // Bit 6
+  setStatusCommand[9] = lock_flags;
+#endif
+#ifdef USE_MIDEA_DEHUM_UV
+  uint8_t uv_flags = 0x00;
+  if (this->uv_state_)   uv_flags |= 0x40;  // Bit 6
+  setStatusCommand[9] = uv_flags;
 #endif
 
   this->sendMessage(0x02, 0x03, 25, setStatusCommand);
