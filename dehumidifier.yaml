@@ -78,4 +78,10 @@ switch:
 # Optional swing control, add this only if your device has Swing function (e.g. Comfee (CDDF7-16DEN7-WFI))
     swing:
       name: "Swing"
+# Optional Child Lock control, add this only if your device has Child lock function
+    child_lock:
+      name: "lock"
+# Optional UV control, add this only if your device has UV function
+    uv:
+      name: "UV"
       
