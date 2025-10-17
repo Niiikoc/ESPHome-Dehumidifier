@@ -80,7 +80,7 @@ switch:
       name: "Swing"
 # Optional Child Lock control, add this only if your device has Child lock function
     child_lock:
-      name: "lock"
+      name: "Lock"
 # Optional UV control, add this only if your device has UV function
     uv:
       name: "UV"
