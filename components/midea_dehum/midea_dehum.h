@@ -71,15 +71,11 @@ class MideaDehumComponent : public climate::Climate,
   std::string display_mode_continuous_{"Continuous"};
   std::string display_mode_smart_{"Smart"};
   std::string display_mode_clothes_drying_{"ClothesDrying"};
-  std::string display_mode_manual_{"Manual"};
-  std::string display_mode_sleep_{"Sleep"};
 
   void set_display_mode_setpoint(const std::string &name) { display_mode_setpoint_ = name; }
   void set_display_mode_continuous(const std::string &name) { display_mode_continuous_ = name; }
   void set_display_mode_smart(const std::string &name) { display_mode_smart_ = name; }
   void set_display_mode_clothes_drying(const std::string &name) { display_mode_clothes_drying_ = name; }
-  void set_display_mode_manual(const std::string &name) { display_mode_manual_ = name; }
-  void set_display_mode_sleep(const std::string &name) { display_mode_sleep_ = name; }
 
   void setup() override;
   void loop() override;

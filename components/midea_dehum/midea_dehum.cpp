@@ -190,8 +190,6 @@ climate::ClimateTraits MideaDehumComponent::traits() {
   if (display_mode_continuous_ != "UNUSED") custom_presets.insert(display_mode_continuous_);
   if (display_mode_smart_ != "UNUSED") custom_presets.insert(display_mode_smart_);
   if (display_mode_clothes_drying_ != "UNUSED") custom_presets.insert(display_mode_clothes_drying_);
-  if (display_mode_manual_ != "UNUSED") custom_presets.insert(display_mode_manual_);
-  if (display_mode_sleep_ != "UNUSED") custom_presets.insert(display_mode_sleep_);
 
   if (!custom_presets.empty()) {
     t.set_supported_custom_presets(custom_presets);
@@ -306,7 +304,7 @@ void MideaDehumComponent::handleStateUpdateRequest(std::string requestedState, u
   if (requestedState == "on") newState.powerOn = true;
   else if (requestedState == "off") newState.powerOn = false;
 
-  if (mode < 1 || mode > 6) mode = 3;  // Updated to include modes 5 (manual) and 6 (sleep)
+  if (mode < 1 || mode > 4) mode = 3;
   newState.mode = mode;
   newState.fanSpeed = fanSpeed;
 
@@ -329,7 +327,7 @@ void MideaDehumComponent::sendSetStatus() {
   setStatusCommand[1] = state.powerOn ? 0x01 : 0x00;
 
   uint8_t mode = state.mode;
-  if (mode < 1 || mode > 6) mode = 3;  // Updated to include modes 5 (manual) and 6 (sleep)
+  if (mode < 1 || mode > 4) mode = 3;
   setStatusCommand[2] = mode & 0x0F;
 
   setStatusCommand[3] = (uint8_t)state.fanSpeed;
@@ -446,8 +444,6 @@ void MideaDehumComponent::publishState() {
     case 2: current_mode_str = display_mode_continuous_; break;
     case 3: current_mode_str = display_mode_smart_; break;
     case 4: current_mode_str = display_mode_clothes_drying_; break;
-    case 5: current_mode_str = display_mode_manual_; break;
-    case 6: current_mode_str = display_mode_sleep_; break;
     default: current_mode_str = display_mode_smart_; break;
   }
 
@@ -489,10 +485,6 @@ void MideaDehumComponent::control(const climate::ClimateCall &call) {
       reqMode = 3;
     else if (requestedPreset == display_mode_clothes_drying_)
       reqMode = 4;
-    else if (requestedPreset == display_mode_manual_)
-      reqMode = 5;
-    else if (requestedPreset == display_mode_sleep_)
-      reqMode = 6;
     else
       reqMode = 3;
   }
