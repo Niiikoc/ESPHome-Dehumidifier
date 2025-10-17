@@ -250,12 +250,12 @@ void MideaDehumComponent::parseState() {
   if (this->swing_switch_) this->swing_switch_->publish_state(new_swing_state);
 #endif
 #ifdef USE_MIDEA_DEHUM_LOCK
-  bool new_lock_state = (serialRxBuf[29] & 0x20) != 0;
+  bool new_lock_state = (serialRxBuf[19] & 0x80) != 0;  // Bit 7 in byte 19
   this->lock_state_ = new_lock_state;
   if (this->lock_switch_) this->lock_switch_->publish_state(new_lock_state);
 #endif
 #ifdef USE_MIDEA_DEHUM_UV
-  bool new_uv_state = (serialRxBuf[29] & 0x20) != 0;
+  bool new_uv_state = (serialRxBuf[19] & 0x20) != 0;  // Bit 5 in byte 19
   this->uv_state_ = new_uv_state;
   if (this->uv_switch_) this->uv_switch_->publish_state(new_uv_state);
 #endif
@@ -391,12 +391,12 @@ void MideaDehumComponent::sendSetStatus() {
 #endif
 #ifdef USE_MIDEA_DEHUM_LOCK
   uint8_t lock_flags = 0x00;
-  if (this->lock_state_)   lock_flags |= 0x40;  // Bit 6
+  if (this->lock_state_)   lock_flags |= 0x80;  // Bit 6
   setStatusCommand[9] = lock_flags;
 #endif
 #ifdef USE_MIDEA_DEHUM_UV
   uint8_t uv_flags = 0x00;
-  if (this->uv_state_)   uv_flags |= 0x40;  // Bit 6
+  if (this->uv_state_)   uv_flags |= 0x20;  // Bit 6
   setStatusCommand[9] = uv_flags;
 #endif
 
