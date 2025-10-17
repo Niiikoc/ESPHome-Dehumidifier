@@ -140,7 +140,7 @@ void MideaSwingSwitch::write_state(bool state) {
 void MideaDehumComponent::set_lock_state(bool on) {
   if (this->lock_state_ == on) return;
   this->lock_state_ = on;
-  ESP_LOGI(TAG, "Lock %s", on ? "ON" : "OFF");
+  ESP_LOGI(TAG, "Child Lock %s", on ? "ON" : "OFF");
   this->sendSetStatus();
 }
 
